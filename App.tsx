@@ -5,6 +5,7 @@ import {generate, stringToArray,solve }  from './sudoku';
 import CongratulationsModal from './Congratulation';
 import GameOver from './Gameover';
 import { CellSize, BoardWidth, BorderWidth } from './components/GlobalStyle';
+
 const App: React.FC = () => {
   const [diff, setDiff] = useState('easy')
   const [board, setBoard] = useState(generate(diff, false))
@@ -180,6 +181,7 @@ const App: React.FC = () => {
 
   const handleClickNumber = (number: string) => {
   if (isGameOver != true || isWin != true){
+
     if (currentSquare != "" ){
       const newState = { ...squareState };
       const column = parseInt(currentSquare.charAt(7));
@@ -207,9 +209,7 @@ const App: React.FC = () => {
             checkWin(newState,incorrectstate)
           }
         }
-        else{
 
-        }
         if ((mistake +1)>2){
           setIsGameOver(true)
           setVisibleGameOver(true);
@@ -221,6 +221,7 @@ const App: React.FC = () => {
       }
     }
   }
+<<<<<<< HEAD
 }
   const handleErase = () => {
     if (isGameOver != true || isWin != true){
@@ -279,7 +280,7 @@ const App: React.FC = () => {
     setInCorrectCell(initIncorrectCell())
   }
   const checkWin = (newState: any, incorrectstate:any) => {
-    if( checkIncorrectCell(incorrectstate) == false){
+      if( checkIncorrectCell(incorrectstate) == false){
         let flag = true;
         for (let i = 11; i <= 99; i++) {
             if ((newState[`square${i}`] == 0 || newState[`square${i}`] == '0' ) && i%10!=0){
@@ -294,7 +295,7 @@ const App: React.FC = () => {
         setIsWin(true)
         setCurrentSquare("")
         }
-    }
+      }
 
         
     }
@@ -392,6 +393,7 @@ const App: React.FC = () => {
         <View style={[styles.cell, styles.bottom, currentSquare === 'square17' ? styles.clickedSquare : null,]}><TouchableOpacity onPress={() => handleCellPress('square17')}><Text style={[styles.textcell, inCorrectCell['17'] === true ? styles.incorrectCell : null]}>{squareState['square17'] == 0 ? '                  ' : squareState['square17']}</Text></TouchableOpacity></View>
         <View style={[styles.cell, styles.bottom, currentSquare === 'square18' ? styles.clickedSquare : null,]}><TouchableOpacity onPress={() => handleCellPress('square18')}><Text style={[styles.textcell, inCorrectCell['18'] === true ? styles.incorrectCell : null]}>{squareState['square18'] == 0 ? '                  ' : squareState['square18']}</Text></TouchableOpacity></View>
         <View style={[styles.cell, styles.bottom, styles.right, currentSquare === 'square19' ? styles.clickedSquare : null,]}><TouchableOpacity onPress={() => handleCellPress('square19')}><Text style={[styles.textcell, inCorrectCell['19'] === true ? styles.incorrectCell : null]}>{squareState['square19'] == 0 ? '                  ' : squareState['square19']}</Text></TouchableOpacity></View>
+
       </View>
       <View style={styles.buttonContainer}>
         <View style={{flexDirection: 'column'}}>
@@ -474,7 +476,7 @@ const styles = StyleSheet.create({
     fontFamily: 'HelveticaNeue',
     backgroundColor:'#FFFFE0'
   },
-  cell: {
+    cell: {
     width: CellSize,
     height: CellSize,
     backgroundColor: 'lightyellow',

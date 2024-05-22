@@ -25,9 +25,14 @@
     // Define difficulties by how many squares are given to the player in a new
     // puzzle.
     var DIFFICULTY = {
+
         "easy":         79,
         "medium":       53,
         "hard":         44,
+
+        // "easy":         52,
+        // "medium":       43,
+        // "hard":         34,
         "very-hard":    35,
         "insane":       26,
         "inhuman":      17,
@@ -38,11 +43,9 @@
     sudoku.BLANK_BOARD = "...................................................."+
             ".............................";
 
-    // Init
-    // -------------------------------------------------------------------------
+
     function initialize(){
-        /* Initialize the Sudoku library (invoked after library load)
-        */
+
         SQUARES             = sudoku._cross(ROWS, COLS);
         UNITS               = sudoku._get_all_units(ROWS, COLS);
         SQUARE_UNITS_MAP    = sudoku._get_square_units_map(SQUARES, UNITS);
@@ -50,45 +53,8 @@
                                     SQUARE_UNITS_MAP);
     }
 
-    // Generate
-    // -------------------------------------------------------------------------
     sudoku.generate = function(difficulty, unique){
-        /* Generate a new Sudoku puzzle of a particular `difficulty`, e.g.,
         
-            // Generate an "easy" sudoku puzzle
-            sudoku.generate("easy");
-            
-        
-        Difficulties are as follows, and represent the number of given squares:
-        
-                "easy":         61
-                "medium":       52
-                "hard":         43
-                "very-hard":    34
-                "insane":       25
-                "inhuman":      17
-            
-            
-        You may also enter a custom number of squares to be given, e.g.,
-        
-            // Generate a new Sudoku puzzle with 60 given squares
-            sudoku.generate(60)
-    
-    
-        `difficulty` must be a number between 17 and 81 inclusive. If it's
-        outside of that range, `difficulty` will be set to the closest bound,
-        e.g., 0 -> 17, and 100 -> 81.
-        
-        
-        By default, the puzzles are unique, uless you set `unique` to false. 
-        (Note: Puzzle uniqueness is not yet implemented, so puzzles are *not* 
-        guaranteed to have unique solutions)
-        
-        TODO: Implement puzzle uniqueness
-        */
-        
-        // If `difficulty` is a string or undefined, convert it to a number or
-        // default it to "easy" if undefined.
         if(typeof difficulty === "string" || typeof difficulty === "undefined"){
             difficulty = DIFFICULTY[difficulty] || DIFFICULTY.easy;
         }
@@ -823,10 +789,19 @@ function stringToArray(sudokuString) {
     return board;
  }
  const generate = (diff, unique) => {
+<<<<<<< HEAD
     return sudoku.generate(diff,unique)
  };
+=======
+    return sudoku.generate(diff, unique)
+ }
+>>>>>>> origin/main
  const solve = (board) => {
     return sudoku.solve(board)
  }
 
+<<<<<<< HEAD
 export { generate,stringToArray,solve}
+=======
+export {generate, stringToArray, solve}
+>>>>>>> origin/main
