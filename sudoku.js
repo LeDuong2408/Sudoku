@@ -789,19 +789,10 @@ function stringToArray(sudokuString) {
     return board;
  }
  const generate = (diff, unique) => {
-<<<<<<< HEAD
     return sudoku.generate(diff,unique)
  };
-=======
-    return sudoku.generate(diff, unique)
- }
->>>>>>> origin/main
  const solve = (board) => {
     return sudoku.solve(board)
  }
 
-<<<<<<< HEAD
 export { generate,stringToArray,solve}
-=======
-export {generate, stringToArray, solve}
->>>>>>> origin/main

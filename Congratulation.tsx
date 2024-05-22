@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 
-const CongratulationsModal = ({ visible, onRequestClose }:any) => {
+const CongratulationsModal = ({ visible, onRequestClose, elapsed }:any) => {
   return (
     <Modal
       transparent={true}
@@ -17,6 +17,7 @@ const CongratulationsModal = ({ visible, onRequestClose }:any) => {
         />
           <Text style={styles.congratsText}>Congratulations!</Text>
           <Text style={styles.messageText}>You have successfully completed the Sudoku game!</Text>
+          <Text style={styles.messageText}>{elapsed}</Text>
           <TouchableOpacity style={styles.closeButton} onPress={onRequestClose} >
             <Text style={styles.closeButtonText} >Close</Text>
           </TouchableOpacity>
