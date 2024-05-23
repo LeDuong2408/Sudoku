@@ -77,9 +77,9 @@ const Timer: React.FC<TimerProps> = ({ elapsed = 0, disabled = true, style, disa
 
 const styles = StyleSheet.create({
   text: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '100',
+    color: 'black',
+    fontSize: 20,
+    fontWeight: '200',
     fontFamily: 'Menlo',
   },
 });

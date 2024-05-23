@@ -1,45 +1,164 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ScrollView } from 'react-native';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {generate, stringToArray,solve }  from './sudoku';
 import CongratulationsModal from './Congratulation';
 import GameOver from './Gameover';
-import { CellSize, BoardWidth, BorderWidth } from './components/GlobalStyle';
+import Timer from './components/Timer';
+import { CellSize, BoardWidth, BorderWidth, Color } from './components/GlobalStyle';
+import database from '@react-native-firebase/database';
+
+
+type Difficulty = 'easy' | 'medium' | 'hard';
+
+// Define the time limits for each difficulty level
+const allTimeLimit = {"easy": 10000, "medium" : 240000, "hard": 300000}
 
 const App: React.FC = () => {
-  const [diff, setDiff] = useState('easy')
+  const [diff, setDiff] = useState<Difficulty>('easy')
   const [board, setBoard] = useState(generate(diff, false))
   const [strSolve, setStrSolve] = useState(solve(board))
   const [BoardSolve, setBoardSolve] = useState(stringToArray(strSolve))
   const [sudoku_board, setsudoku_board] = useState(stringToArray(board))
   const [copyboard, setCopyboard] = useState(sudoku_board)
+
+
   const [isWin, setIsWin] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
   const [visibleWin, setVisibleWin] = useState(false)
   const [visibleGameOver, setVisibleGameOver] = useState(false)
   const [difficaltily, setDifficaltily] = useState(false)
   const [currentSquare, setCurrentSquare] = useState('')
-
   const [hint,setHint] = useState(3)
   const [mistake,setMistake] = useState(0)
 
 
+  const [timeLimit, setTimeLimit] = useState(allTimeLimit[diff])
+  const [tenSecondsStyle, setTenSecondsStyle] = useState(false)
+  const [isRunning, setIsRunning] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [isContinue, setIsContinue] = useState(false)
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const start = () => {
+    setIsRunning(true);
+    const startTime = Date.now() - (elapsedTime || 0 );
+    timerRef.current = setInterval(() => {
+      setElapsedTime(Date.now() - startTime);
+    }, 1000);
+  };
 
+  const writeTimestampToDatabase = async () => {
+    try {
+      await database().ref('timestamps').set({
+        timestamp: new Date().toString(),
+      });
+      console.log('Timestamp has been written to the database successfully!');
+    } catch (error) {
+      console.error('Error writing timestamp to database:', error);
+    }
+  };
+  
+  
+
+  const stop = () => {
+    setIsRunning(false);
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+    }
+  };
+
+  useEffect(() => {
+    return () => {if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+    }
+  }
+  }, []);
+
+
+  const loadSudokuArray = async () => {
+    try {
+      const savedSudokuArray = await AsyncStorage.getItem('sudoku'); // Lấy mảng Sudoku từ AsyncStorage
+      const elap = await AsyncStorage.getItem('elapsed'); // Lấy mảng Sudoku từ AsyncStorage
+      if (savedSudokuArray !== null) {
+        setIsContinue(true);
+        setsudoku_board(JSON.parse(savedSudokuArray)); // Chuyển đổi chuỗi JSON thành mảng và cập nhật state
+        if(elap != null)
+        setElapsedTime(parseInt(elap));
+      console.log(elap)
+      }
+    } catch (error) {
+      setBoard(generate(diff, false))
+      setStrSolve(solve(board))
+    }
+  };
+
+  const saveSudokuArray = async () => {
+    try {
+      await AsyncStorage.setItem('sudoku', JSON.stringify(sudoku_board)); // Chuyển đổi mảng thành chuỗi JSON và lưu vào AsyncStorage
+      console.log('Sudoku array saved successfully!');
+    } catch (error) {
+      console.log('Error saving Sudoku array:', error);
+    }
+  };
+  const saveElaspedTime = async () => {
+    try {
+      await AsyncStorage.setItem('elapsed', JSON.stringify(elapsedTime.toString())); // Chuyển đổi mảng thành chuỗi JSON và lưu vào AsyncStorage
+      console.log('Elasped Save:', elapsedTime)
+    } catch (error) {
+      console.log('Error saving Sudoku array:', error);
+    }
+  };
 
   useEffect(() => {
     setBoard(generate(diff, false))
     setStrSolve(solve(board))
+    // loadSudokuArray();
     fillBoard();
   }, []);
 
+  useEffect(() => {
+    setTimeLimit(allTimeLimit[diff]);
+  }, [diff]);
 
+  useEffect(() => {
+      if (elapsedTime >= timeLimit)
+      {
+        setIsGameOver(true);
+        setVisibleGameOver(true);
+        stop();
+      }
+      else if(elapsedTime >= timeLimit -15000 && elapsedTime < timeLimit - 10000)
+      {
+        setTenSecondsStyle(true);
 
-
+      }
+      else if(elapsedTime >= timeLimit-10000 && elapsedTime < timeLimit){
+        if(tenSecondsStyle == false){
+          setTenSecondsStyle(true);
+        }
+        else{
+          setTenSecondsStyle(false);
+        }
+      }
+  },[elapsedTime]);
+    
   useEffect(() => {
     setCopyboard(sudoku_board)
     // console.log('Difficulty State useEffect: ', diff);
     // console.log('Board Sudoku UseEffect:', sudoku_board);
+
+    setElapsedTime(0)
+    setTenSecondsStyle(false);
+    setIsGameOver(false);
+    setVisibleGameOver(false);
+    setIsWin(false);
+    setVisibleWin(false)
+    stop()
+    start()
     fillBoard();
+    // saveSudokuArray();
   }, [diff, sudoku_board]);
 
   useEffect(() => {
@@ -74,7 +193,7 @@ const App: React.FC = () => {
   <TouchableWithoutFeedback onPress={() => pressDifficaltily()}>
     <View style={{ width:'100%' , height: '100%',flex:1 ,position: "absolute", justifyContent:'center',alignItems:'center'}}>
       
-      <View style={{ position: "absolute",backgroundColor: "white", borderWidth: 8, borderColor:'#0072e3'}}>
+      <View style={{ position: "absolute",backgroundColor: "white",  borderColor: '#5F9EA0',borderWidth: StyleSheet.hairlineWidth + 5, borderRadius: BorderWidth,}}>
         <TouchableOpacity style={{width: 200, height: 60, justifyContent: 'center', alignItems: 'center', borderWidth: 0.5}} onPress={() => handleChoiseDiff('easy')}>
           <Text style={{fontSize: 25}}>Easy</Text>
         </TouchableOpacity>
@@ -89,6 +208,13 @@ const App: React.FC = () => {
     </View>
   </TouchableWithoutFeedback>
     )
+  }
+
+  function formatTime(elapsed: number): string {
+    const hour = Math.floor(elapsed / 60 / 60);
+    const minute = Math.floor(elapsed / 60 - hour * 60);
+    const second = elapsed % 60;
+    return [hour, minute, second].map(x => x < 10 ? '0' + x : x).join(':');
   }
   
   function fillBoard() {
@@ -106,11 +232,14 @@ const App: React.FC = () => {
     setDifficaltily(!difficaltily)
   }
 
-  const handleChoiseDiff = (difficul:string) => {
+  const handleChoiseDiff = (difficul:Difficulty) => {
     setIsWin(false)
     setIsGameOver(false)
     setHint(3)
     setMistake(0)
+    setElapsedTime(0)
+    setIsContinue(false);
+    stop()
     setDifficaltily(!difficaltily);
     setDiff(difficul);
     setBoard(generate(difficul, false))
@@ -132,6 +261,10 @@ const App: React.FC = () => {
     setIsGameOver(false)
     setHint(3)
     setMistake(0)
+    setElapsedTime(0)
+    setIsContinue(false);
+    stop()
+    
     setBoard(generate(diff, false))
     // console.log('Difficulty State New Game: ', diff)
     // setsudoku_board(stringToArray(boardgenerate))
@@ -171,7 +304,6 @@ const App: React.FC = () => {
   const checkIncorrectCell = (incorrectstate:any) => {
     for (let i = 11; i <= 99; i++) {
         if (incorrectstate[`${i}`] == true){
-            console.log("Sai",i);
             return true;
         }
       }
@@ -213,6 +345,7 @@ const App: React.FC = () => {
         if ((mistake +1)>2){
           setIsGameOver(true)
           setVisibleGameOver(true);
+          stop();
           // Alert.alert(visible)
           // Alert.alert('game over')
           // CongratulationForm();
@@ -221,7 +354,6 @@ const App: React.FC = () => {
       }
     }
   }
-<<<<<<< HEAD
 }
   const handleErase = () => {
     if (isGameOver != true || isWin != true){
@@ -276,7 +408,9 @@ const App: React.FC = () => {
     }
     setSquareState(newState)
     setCopyboard(BoardSolve)
+    setTenSecondsStyle(false)
     setCurrentSquare("")
+    stop()
     setInCorrectCell(initIncorrectCell())
   }
   const checkWin = (newState: any, incorrectstate:any) => {
@@ -293,6 +427,7 @@ const App: React.FC = () => {
         setVisibleWin(true);
         // Alert.alert("Notification","Congratulation, You Won")
         setIsWin(true)
+        stop()
         setCurrentSquare("")
         }
       }
@@ -302,6 +437,7 @@ const App: React.FC = () => {
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
     <ScrollView contentContainerStyle={styles.container}>
+      <Text style={[styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer ]}>{formatTime(Math.floor((timeLimit- (elapsedTime || 1000) + 1000) / 1000))}</Text>
       <View style={styles.gameBoard}>
         {/* 9th Rank */}
         <View style={[styles.cell, styles.top, styles.left, currentSquare === 'square91' ? styles.clickedSquare : null,   ]}><TouchableOpacity  onPress={() => handleCellPress('square91')}><Text style={[styles.textcell, inCorrectCell['91'] === true ? styles.incorrectCell : null]}>{squareState['square91'] == 0 ? '   ' : squareState['square91']}</Text></TouchableOpacity></View>
@@ -396,29 +532,29 @@ const App: React.FC = () => {
 
       </View>
       <View style={styles.buttonContainer}>
-        <View style={{flexDirection: 'column'}}>
-        <View  style={{flexDirection: 'row', justifyContent:'space-around'}}>
-          <Text>Mistake</Text>
-          <Text id="mistakes">{mistake}/3</Text>
-          <Text>Hints:</Text>
-          <Text id="hint">{hint}/3</Text>
+        <View style={{flexDirection: 'column',}}>
+        <View  style={{flexDirection: 'row', justifyContent:'space-around', marginBottom: 10}}>
+          {/* <Text>Mistake</Text> */}
+          <Text id="mistakes">Mistake:       {mistake}/3</Text>
+          {/* <Text>Hints:</Text> */}
+          <Text id="hint">Hints:      {hint}/3</Text>
         </View>
           <View style={{flexDirection: 'row', justifyContent:'space-around'}}>
             <TouchableOpacity activeOpacity={0.5} style={styles.eraseButton} onPress={() => handleErase()}><Text>Erase</Text></TouchableOpacity>
             <TouchableOpacity activeOpacity={0.5}  style={[styles.eraseButton]} onPress={() => handleHint()}><Text >Hint</Text></TouchableOpacity>
           </View>
         </View>
-        <View style={styles.numbers}>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("1")}><View><Text style={[styles.textstackcell]}>1</Text></View></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("2")}><Text>2</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("3")}><Text>3</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("4")}><Text>4</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("5")}><Text>5</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("6")}><Text>6</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("7")}><Text>7</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("8")}><Text>8</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.container]} onPress={() => handleClickNumber("9")}><Text>9</Text></TouchableOpacity>
-          <CongratulationsModal visible={visibleWin} onRequestClose={handRequestCloseWin}></CongratulationsModal>
+        <View style={[styles.numbers]}>
+          <TouchableOpacity activeOpacity={0.5} style={[ styles.stackcontainer]} onPress={() => handleClickNumber("1")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>1</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("2")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>2</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("3")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>3</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("4")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>4</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("5")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>5</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("6")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>6</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("7")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>7</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("8")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>8</Text></View></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.5} style={[styles.number, styles.stackcontainer]} onPress={() => handleClickNumber("9")}><View style={[styles.stackcell]}><Text style={[styles.textstackcell]}>9</Text></View></TouchableOpacity>
+          <CongratulationsModal visible={visibleWin} onRequestClose={handRequestCloseWin} elapsed={formatTime(Math.floor(elapsedTime/1000))}></CongratulationsModal>
           <GameOver visible={visibleGameOver} onRequestClose={handleRequestCloseGameover} onPlayAgain={handlePlayAgain}></GameOver>
         </View>
         </View>
@@ -454,12 +590,13 @@ const styles = StyleSheet.create({
     },
   gameBoard: {
     width: '100%',
-    height: '60%',
+    height: '50%',
     display: 'flex',
     flexWrap: 'wrap',
     borderWidth: 10,
     borderColor: 'transparent',
-    flexDirection: 'row'
+    flexDirection: 'row',
+    alignContent: 'center',
   },
   square: {
     width: '11%',
@@ -550,9 +687,11 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 50,
-    borderWidth: 0,
+    borderWidth: 1,
     color: '#0072e3',
-    backgroundColor: 'rgb(227, 233, 246)',
+    // backgroundColor: 'rgb(227, 233, 246)',
+    backgroundColor: 'moccasin',
+    borderColor: 'orange',
     fontSize: 10,
     // cursor: 'pointer',
     marginVertical: 2,
@@ -571,11 +710,12 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   numbers: {
-    width: '50%',
-    height: '50%',
+    // borderWidth: 1,
+    width: '90%',
+    height: '40%',
     display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent:'space-between',
+    flexWrap: 'nowrap',
+    justifyContent:'space-evenly',
     alignItems:'center',
     flexDirection: 'row',
   },
@@ -619,13 +759,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'peru', // Example color change
   },
   stackcontainer: {
-    position: 'absolute',
-    width: CellSize,
-    height: CellSize,
+    // position: 'absolute',
+    // justifyContent: 'space-between',
+    width: CellSize -10,
+    height: CellSize -10,
+    margin: 9,
   },
   stackcell: {
-    width: CellSize,
-    height: CellSize,
+    width: CellSize -5,
+    height: CellSize + 5,
     backgroundColor: 'moccasin',
     borderColor: 'orange',
     borderWidth: StyleSheet.hairlineWidth,
@@ -635,10 +777,21 @@ const styles = StyleSheet.create({
   },
   textstackcell: {
     color: '#666',
-    fontSize: CellSize * 2 / 3,
+    fontSize: CellSize * 3 / 6,
     fontFamily: 'HelveticaNeue',
-  }
-  
+  },
+  textTimer: {
+    fontSize: 20,
+    fontWeight: '200',
+    fontFamily: 'Menlo',
+  },
+  warningTimer:{
+    color: 'red',
+    fontWeight: 'bold',
+  },
+  notWarningTimer:{
+    color: 'black',
+  },
 });
 
 
