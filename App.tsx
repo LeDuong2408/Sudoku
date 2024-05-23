@@ -13,7 +13,7 @@ import database from '@react-native-firebase/database';
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 // Define the time limits for each difficulty level
-const allTimeLimit = {"easy": 10000, "medium" : 250000, "hard": 300000}
+const allTimeLimit = {"easy": 10000, "medium" : 240000, "hard": 300000}
 
 const App: React.FC = () => {
   const [diff, setDiff] = useState<Difficulty>('easy')
@@ -437,7 +437,7 @@ const App: React.FC = () => {
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={[styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer ]}>{formatTime(Math.floor((elapsedTime || 0) / 1000))}</Text>
+      <Text style={[styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer ]}>{formatTime(Math.floor((timeLimit- (elapsedTime || 1000) + 1000) / 1000))}</Text>
       <View style={styles.gameBoard}>
         {/* 9th Rank */}
         <View style={[styles.cell, styles.top, styles.left, currentSquare === 'square91' ? styles.clickedSquare : null,   ]}><TouchableOpacity  onPress={() => handleCellPress('square91')}><Text style={[styles.textcell, inCorrectCell['91'] === true ? styles.incorrectCell : null]}>{squareState['square91'] == 0 ? '   ' : squareState['square91']}</Text></TouchableOpacity></View>
