@@ -7,6 +7,7 @@ import CongratulationsModal from './Congratulation';
 import GameOver from './Gameover';
 import Timer from './components/Timer';
 import { CellSize, BoardWidth, BorderWidth } from './components/GlobalStyle';
+import database from '@react-native-firebase/database';
 
 const App: React.FC = () => {
   const [diff, setDiff] = useState('easy')
@@ -28,7 +29,7 @@ const App: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isContinue, setIsContinue] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
+  database 
   const start = () => {
     setIsRunning(true);
     const startTime = Date.now() - (elapsedTime || 0 );
@@ -36,6 +37,19 @@ const App: React.FC = () => {
       setElapsedTime(Date.now() - startTime);
     }, 1000);
   };
+
+  const writeTimestampToDatabase = async () => {
+    try {
+      await database().ref('timestamps').set({
+        timestamp: new Date().toString(),
+      });
+      console.log('Timestamp has been written to the database successfully!');
+    } catch (error) {
+      console.error('Error writing timestamp to database:', error);
+    }
+  };
+  
+  
 
   const stop = () => {
     setIsRunning(false);
@@ -99,9 +113,8 @@ const App: React.FC = () => {
     setCopyboard(sudoku_board)
     // console.log('Difficulty State useEffect: ', diff);
     // console.log('Board Sudoku UseEffect:', sudoku_board);
-    if(isContinue == false) {
-      setElapsedTime(0)
-    }
+
+    setElapsedTime(0)
     stop()
     start()
     fillBoard();
@@ -358,7 +371,6 @@ const App: React.FC = () => {
     setCopyboard(BoardSolve)
     setCurrentSquare("")
     stop()
-    setElapsedTime(0)
     setInCorrectCell(initIncorrectCell())
   }
   const checkWin = (newState: any, incorrectstate:any) => {
