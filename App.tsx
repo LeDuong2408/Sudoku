@@ -1,20 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ScrollView } from 'react-native';
+import { Image, ScrollView } from 'react-native';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet,Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {generate, stringToArray,solve }  from './sudoku';
 import CongratulationsModal from './Congratulation';
 import GameOver from './Gameover';
+import ListTime from './ListTime';
 import Timer from './components/Timer';
 import { CellSize, BoardWidth, BorderWidth, Color } from './components/GlobalStyle';
-import database from '@react-native-firebase/database';
-
+import {   app,database }  from './Firebase/firebase';
+import { ref, push, set, query, orderByChild, limitToFirst, get,remove, DataSnapshot,DatabaseReference,getDatabase  } from "firebase/database";
 
 type Difficulty = 'easy' | 'medium' | 'hard';
-
+interface ElapsedValue {
+  key: string;
+  elapsed: number;
+}
 // Define the time limits for each difficulty level
-const allTimeLimit = {"easy": 10000, "medium" : 240000, "hard": 300000}
-
+const allTimeLimit = {"easy": 30000, "medium" : 240000, "hard": 300000}
+const db = getDatabase(app);
 const App: React.FC = () => {
   const [diff, setDiff] = useState<Difficulty>('easy')
   const [board, setBoard] = useState(generate(diff, false))
@@ -36,53 +40,82 @@ const App: React.FC = () => {
 
   const [timeLimit, setTimeLimit] = useState(allTimeLimit[diff])
   const [tenSecondsStyle, setTenSecondsStyle] = useState(false)
-  const [isRunning, setIsRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isContinue, setIsContinue] = useState(false)
+  // const [isRunning, setIsRunning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
+  const [elapsedValues, setElapsedValues] = useState<any[]>([]);
+  const [isVisibleTimeRank, setVisibleTimeRank] = useState(false)
+  // const [isPaused, setIsPaused] = useState(false)
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  const startTimeRef = useRef(0);
+  const pauseTimeRef = useRef(0);
+  const isPausedRef = useRef(false); // Sử dụng useRef để lưu trữ trạng thái của isPaused
+
+
   const start = () => {
-    setIsRunning(true);
-    const startTime = Date.now() - (elapsedTime || 0 );
+    startTimeRef.current = Date.now() - elapsedTime;
     timerRef.current = setInterval(() => {
-      setElapsedTime(Date.now() - startTime);
+      if (!isPausedRef.current) {
+        setElapsedTime(Date.now() - startTimeRef.current);
+      }
     }, 1000);
   };
 
-  const writeTimestampToDatabase = async () => {
-    try {
-      await database().ref('timestamps').set({
-        timestamp: new Date().toString(),
-      });
-      console.log('Timestamp has been written to the database successfully!');
-    } catch (error) {
-      console.error('Error writing timestamp to database:', error);
-    }
-  };
-  
-  
-
   const stop = () => {
-    setIsRunning(false);
     if (timerRef.current !== null) {
       clearInterval(timerRef.current);
     }
   };
 
-  useEffect(() => {
-    return () => {if (timerRef.current !== null) {
+  const pause = () => {
+    if (!isPausedRef.current) {
+      pauseTimeRef.current = Date.now();
+      isPausedRef.current = true;
+    }
+  };
+
+  const resume = () => {
+    if (isPausedRef.current) {
+      const pausedDuration = Date.now() - pauseTimeRef.current;
+      startTimeRef.current += pausedDuration;
+      isPausedRef.current = false;
+    }
+  };
+
+
+  
+
+  const stopppppp = () => {
+    // setIsRunning(false);
+    if (timerRef.current !== null) {
       clearInterval(timerRef.current);
     }
-  }
-  }, []);
+  };
 
+  const hanleSetElapsedValues = () =>{
+    getElapsedValues('easy')
+  .then((values) => {
+    // Sắp xếp mảng theo thứ tự tăng dần của giá trị elapsed
+    values.sort((a, b) => a.elapsed - b.elapsed);
+
+    // Chỉ lấy 5 giá trị nhỏ nhất
+    const smallestValues = values.slice(0, 5);
+
+    // Set giá trị elapsedValues với 5 giá trị nhỏ nhất
+    setElapsedValues(smallestValues);
+  })
+  .catch((error) => {
+    console.error("Đã xảy ra lỗi khi lấy dữ liệu:", error);
+  });
+  }
 
   const loadSudokuArray = async () => {
     try {
       const savedSudokuArray = await AsyncStorage.getItem('sudoku'); // Lấy mảng Sudoku từ AsyncStorage
       const elap = await AsyncStorage.getItem('elapsed'); // Lấy mảng Sudoku từ AsyncStorage
       if (savedSudokuArray !== null) {
-        setIsContinue(true);
+        // setIsContinue(true);
         setsudoku_board(JSON.parse(savedSudokuArray)); // Chuyển đổi chuỗi JSON thành mảng và cập nhật state
         if(elap != null)
         setElapsedTime(parseInt(elap));
@@ -110,8 +143,80 @@ const App: React.FC = () => {
       console.log('Error saving Sudoku array:', error);
     }
   };
+  //Firebase
+
+  const writeTimeData = async (difficul: any, elapsed: any) => {
+    const timeRankSudokuRef: DatabaseReference = ref(database, `TimeRankSudoku/${difficul}`);
+    const queryRef = query(timeRankSudokuRef, orderByChild('elapsed'), limitToFirst(10));
+
+    try {
+        // Get the current fastest times
+        const snapshot = await get(queryRef);
+        let numChildren = 0;
+        snapshot.forEach(() => {
+            numChildren++;
+        });
+
+        // If there are less than 10 times or the new time is faster than the slowest time
+        if (numChildren < 10) {
+            // Add the new time
+            const newTimeRef = push(timeRankSudokuRef);
+            await set(newTimeRef, { elapsed: elapsed });
+        } else {
+            // If there are already 10 times, remove the slowest time
+            const currentFastestTimes: any[] = [];
+            snapshot.forEach((childSnapshot) => {
+                currentFastestTimes.push(childSnapshot.val());
+            });
+            currentFastestTimes.sort((a, b) => a.elapsed - b.elapsed);
+
+            const slowestKey = Object.keys(currentFastestTimes[9])[0];
+            await remove(ref(database, `TimeRankSudoku/${difficul}/${slowestKey}`));
+            // Add the new time
+            const newTimeRef = push(timeRankSudokuRef);
+            await set(newTimeRef, { elapsed });
+        }
+    } catch (error) {
+        console.error(error);
+    }
+};
+async function getElapsedValues(difficulty:any) {
+  try {
+      // Lấy tham chiếu đến cơ sở dữ liệu Firebase
+
+      // Tạo đường dẫn đến nút dữ liệu cho độ khó đã cho
+      const path = `TimeRankSudoku/${difficulty}`;
+
+      // Thực hiện truy vấn để lấy danh sách các key trong nút dữ liệu
+      const snapshot = await get(ref(db, path));
+
+      // Mảng để lưu trữ giá trị elapsed từ mỗi key
+      const elapsedValues: any[]  = [];
+
+      // Lặp qua các key và lấy giá trị elapsed của mỗi key
+      snapshot.forEach((childSnapshot) => {
+          // const key = childSnapshot.key; // Lấy key của mỗi child
+          const elapsed = childSnapshot.child("elapsed").val(); // Lấy giá trị elapsed của mỗi child
+          elapsedValues.push({ elapsed }); // Thêm key và elapsed vào mảng
+      });
+
+      // Trả về mảng các giá trị elapsed
+      return elapsedValues;
+  } catch (error) {
+      // Xử lý các trường hợp lỗi nếu có
+      console.error("Đã xảy ra lỗi khi đọc dữ liệu:", error);
+      throw error; // Ném lại lỗi để xử lý ở mức cao hơn nếu cần
+  }
+}
+
 
   useEffect(() => {
+    return () => {if (timerRef.current !== null) {
+    clearInterval(timerRef.current);
+  }
+}},[]);
+  useEffect(() => {
+    
     setBoard(generate(diff, false))
     setStrSolve(solve(board))
     // loadSudokuArray();
@@ -143,13 +248,25 @@ const App: React.FC = () => {
         }
       }
   },[elapsedTime]);
-    
+  
+  useEffect(() => {
+    if(difficaltily == true){
+      pause()
+    }
+    else{
+      resume()
+    }
+  },[difficaltily]);
+
   useEffect(() => {
     setCopyboard(sudoku_board)
     // console.log('Difficulty State useEffect: ', diff);
     // console.log('Board Sudoku UseEffect:', sudoku_board);
-
+    // console.log(elapsedValues)
     setElapsedTime(0)
+    startTimeRef.current = 0
+    pauseTimeRef.current = 0
+    isPausedRef.current = (false)
     setTenSecondsStyle(false);
     setIsGameOver(false);
     setVisibleGameOver(false);
@@ -185,6 +302,7 @@ const App: React.FC = () => {
   }
   const handlePlayAgain = () => {
     setVisibleGameOver(false)
+    isPausedRef.current =(false)
     handleNewGame()
   }
 
@@ -210,6 +328,14 @@ const App: React.FC = () => {
     )
   }
 
+  const handleVisibleTimeRank = () => {
+    setVisibleTimeRank(true);
+    pause();
+  }
+  const handleCloseTimeRank = () => {
+    setVisibleTimeRank(false);
+    resume();
+  }
   function formatTime(elapsed: number): string {
     const hour = Math.floor(elapsed / 60 / 60);
     const minute = Math.floor(elapsed / 60 - hour * 60);
@@ -238,7 +364,7 @@ const App: React.FC = () => {
     setHint(3)
     setMistake(0)
     setElapsedTime(0)
-    setIsContinue(false);
+    // setIsContinue(false);
     stop()
     setDifficaltily(!difficaltily);
     setDiff(difficul);
@@ -259,10 +385,14 @@ const App: React.FC = () => {
   const handleNewGame = () => {
     setIsWin(false)
     setIsGameOver(false)
+    setVisibleTimeRank(false)
     setHint(3)
     setMistake(0)
+    startTimeRef.current = 0
+    pauseTimeRef.current = 0
+    isPausedRef.current = (false)
     setElapsedTime(0)
-    setIsContinue(false);
+    // setIsContinue(false);
     stop()
     
     setBoard(generate(diff, false))
@@ -399,6 +529,7 @@ const App: React.FC = () => {
 // },[inCorrectCell,squareState]);
 
   const handleSolve = () => {
+    if(isWin != true){
     const newState = { ...squareState };
     for (let row = 1; row <= 9; row++) {
       for (let column = 1; column <= 9; column++) {
@@ -412,6 +543,7 @@ const App: React.FC = () => {
     setCurrentSquare("")
     stop()
     setInCorrectCell(initIncorrectCell())
+  }
   }
   const checkWin = (newState: any, incorrectstate:any) => {
       if( checkIncorrectCell(incorrectstate) == false){
@@ -427,6 +559,7 @@ const App: React.FC = () => {
         setVisibleWin(true);
         // Alert.alert("Notification","Congratulation, You Won")
         setIsWin(true)
+        writeTimeData(diff,elapsedTime)
         stop()
         setCurrentSquare("")
         }
@@ -437,7 +570,15 @@ const App: React.FC = () => {
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={[styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer ]}>{formatTime(Math.floor((timeLimit- (elapsedTime || 1000) + 1000) / 1000))}</Text>
+    <ListTime  visible={isVisibleTimeRank} handleCloseTimeRank={handleCloseTimeRank}></ListTime>
+    <View style={{flex:2,flexDirection:'row', width: BoardWidth-50,justifyContent:'space-between',}}>
+      <View style={{justifyContent:'flex-end'}}>
+      <TouchableOpacity activeOpacity={0.8} style={[styles.timeRankButton,]} onPress={() => {handleVisibleTimeRank()}}><Image style={styles.imageRank} source={require('./image/menu.png')}></Image></TouchableOpacity>
+      </View>
+      <View style={{justifyContent:'flex-end'}}>
+      <Text style={[ styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer, ]}>{formatTime(Math.floor((timeLimit- (elapsedTime || 1000) + 1000) / 1000))}</Text>
+      </View>
+    </View>
       <View style={styles.gameBoard}>
         {/* 9th Rank */}
         <View style={[styles.cell, styles.top, styles.left, currentSquare === 'square91' ? styles.clickedSquare : null,   ]}><TouchableOpacity  onPress={() => handleCellPress('square91')}><Text style={[styles.textcell, inCorrectCell['91'] === true ? styles.incorrectCell : null]}>{squareState['square91'] == 0 ? '   ' : squareState['square91']}</Text></TouchableOpacity></View>
@@ -563,6 +704,7 @@ const App: React.FC = () => {
           <TouchableOpacity activeOpacity={0.8} style={[styles.solveButton, {}]} onPress={() => handleNewGame()} ><Text style={[styles.textButton]}>New Game</Text></TouchableOpacity>
           <TouchableOpacity activeOpacity={0.8} style={styles.solveButton} onPress={() => handleSolve()} ><Text style={[styles.textButton]}>Solve</Text></TouchableOpacity>
           <TouchableOpacity activeOpacity={0.8} style={styles.solveButton} onPress={() => pressDifficaltily()}>
+          
             <Text style={[styles.textButton]}>Difficaltily</Text>
           </TouchableOpacity>
         </View>
@@ -663,6 +805,17 @@ const styles = StyleSheet.create({
     width: '33%',
     height: 50,
     marginVertical: 2,
+    // backgroundColor: '#0072e3',
+    backgroundColor: '#5F9EA0',
+    fontSize: 18,
+    borderRadius: 5,
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeRankButton:{
+    width: 30,
+    height: 30,
     // backgroundColor: '#0072e3',
     backgroundColor: '#5F9EA0',
     fontSize: 18,
@@ -781,7 +934,7 @@ const styles = StyleSheet.create({
     fontFamily: 'HelveticaNeue',
   },
   textTimer: {
-    fontSize: 20,
+    fontSize: 23,
     fontWeight: '200',
     fontFamily: 'Menlo',
   },
@@ -792,6 +945,10 @@ const styles = StyleSheet.create({
   notWarningTimer:{
     color: 'black',
   },
+  imageRank:{
+    width: 20,
+    height: 20,
+  }
 });
 
 

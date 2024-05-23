@@ -26,8 +26,8 @@
     // puzzle.
     var DIFFICULTY = {
 
-        "easy":         79,
-        "medium":       53,
+        "easy":         72,
+        "medium":       54,
         "hard":         44,
 
         // "easy":         52,

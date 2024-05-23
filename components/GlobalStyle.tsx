@@ -6,6 +6,7 @@ import {
   export const Size = Dimensions.get('window');
   
   export const BoardWidth = Size.width;
+  export const BoardHeight = Size.height;
   
   export const CellSize = Math.floor(BoardWidth / 10);
   
