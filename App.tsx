@@ -6,30 +6,41 @@ import {generate, stringToArray,solve }  from './sudoku';
 import CongratulationsModal from './Congratulation';
 import GameOver from './Gameover';
 import Timer from './components/Timer';
-import { CellSize, BoardWidth, BorderWidth } from './components/GlobalStyle';
+import { CellSize, BoardWidth, BorderWidth, Color } from './components/GlobalStyle';
 import database from '@react-native-firebase/database';
 
+
+type Difficulty = 'easy' | 'medium' | 'hard';
+
+// Define the time limits for each difficulty level
+const allTimeLimit = {"easy": 10000, "medium" : 250000, "hard": 300000}
+
 const App: React.FC = () => {
-  const [diff, setDiff] = useState('easy')
+  const [diff, setDiff] = useState<Difficulty>('easy')
   const [board, setBoard] = useState(generate(diff, false))
   const [strSolve, setStrSolve] = useState(solve(board))
   const [BoardSolve, setBoardSolve] = useState(stringToArray(strSolve))
   const [sudoku_board, setsudoku_board] = useState(stringToArray(board))
   const [copyboard, setCopyboard] = useState(sudoku_board)
+
+
   const [isWin, setIsWin] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
   const [visibleWin, setVisibleWin] = useState(false)
   const [visibleGameOver, setVisibleGameOver] = useState(false)
   const [difficaltily, setDifficaltily] = useState(false)
   const [currentSquare, setCurrentSquare] = useState('')
-
   const [hint,setHint] = useState(3)
   const [mistake,setMistake] = useState(0)
+
+
+  const [timeLimit, setTimeLimit] = useState(allTimeLimit[diff])
+  const [tenSecondsStyle, setTenSecondsStyle] = useState(false)
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isContinue, setIsContinue] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  database 
+  
   const start = () => {
     setIsRunning(true);
     const startTime = Date.now() - (elapsedTime || 0 );
@@ -107,14 +118,43 @@ const App: React.FC = () => {
     fillBoard();
   }, []);
 
+  useEffect(() => {
+    setTimeLimit(allTimeLimit[diff]);
+  }, [diff]);
 
+  useEffect(() => {
+      if (elapsedTime >= timeLimit)
+      {
+        setIsGameOver(true);
+        setVisibleGameOver(true);
+        stop();
+      }
+      else if(elapsedTime >= timeLimit -15000 && elapsedTime < timeLimit - 10000)
+      {
+        setTenSecondsStyle(true);
 
+      }
+      else if(elapsedTime >= timeLimit-10000 && elapsedTime < timeLimit){
+        if(tenSecondsStyle == false){
+          setTenSecondsStyle(true);
+        }
+        else{
+          setTenSecondsStyle(false);
+        }
+      }
+  },[elapsedTime]);
+    
   useEffect(() => {
     setCopyboard(sudoku_board)
     // console.log('Difficulty State useEffect: ', diff);
     // console.log('Board Sudoku UseEffect:', sudoku_board);
 
     setElapsedTime(0)
+    setTenSecondsStyle(false);
+    setIsGameOver(false);
+    setVisibleGameOver(false);
+    setIsWin(false);
+    setVisibleWin(false)
     stop()
     start()
     fillBoard();
@@ -192,7 +232,7 @@ const App: React.FC = () => {
     setDifficaltily(!difficaltily)
   }
 
-  const handleChoiseDiff = (difficul:string) => {
+  const handleChoiseDiff = (difficul:Difficulty) => {
     setIsWin(false)
     setIsGameOver(false)
     setHint(3)
@@ -264,7 +304,6 @@ const App: React.FC = () => {
   const checkIncorrectCell = (incorrectstate:any) => {
     for (let i = 11; i <= 99; i++) {
         if (incorrectstate[`${i}`] == true){
-            console.log("Sai",i);
             return true;
         }
       }
@@ -369,6 +408,7 @@ const App: React.FC = () => {
     }
     setSquareState(newState)
     setCopyboard(BoardSolve)
+    setTenSecondsStyle(false)
     setCurrentSquare("")
     stop()
     setInCorrectCell(initIncorrectCell())
@@ -397,7 +437,7 @@ const App: React.FC = () => {
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={[styles.textTimer]}>{formatTime(Math.floor((elapsedTime || 0) / 1000))}</Text>
+      <Text style={[styles.textTimer, tenSecondsStyle == true ? styles.warningTimer : styles.notWarningTimer ]}>{formatTime(Math.floor((elapsedTime || 0) / 1000))}</Text>
       <View style={styles.gameBoard}>
         {/* 9th Rank */}
         <View style={[styles.cell, styles.top, styles.left, currentSquare === 'square91' ? styles.clickedSquare : null,   ]}><TouchableOpacity  onPress={() => handleCellPress('square91')}><Text style={[styles.textcell, inCorrectCell['91'] === true ? styles.incorrectCell : null]}>{squareState['square91'] == 0 ? '   ' : squareState['square91']}</Text></TouchableOpacity></View>
@@ -741,10 +781,16 @@ const styles = StyleSheet.create({
     fontFamily: 'HelveticaNeue',
   },
   textTimer: {
-    color: 'black',
     fontSize: 20,
     fontWeight: '200',
     fontFamily: 'Menlo',
+  },
+  warningTimer:{
+    color: 'red',
+    fontWeight: 'bold',
+  },
+  notWarningTimer:{
+    color: 'black',
   },
 });
 
